@@ -82,7 +82,7 @@ impl ::std::error::Error for Error {
 
 #[derive(Clone, Debug, Hash)]
 pub struct StreamResult {
-    pub ret: usize,
+    pub ret: c_int,
     pub flags: i32,
     pub time_ns: i64,
     pub chan_mask: usize,
@@ -1345,9 +1345,9 @@ impl<E: StreamSample> RxStream<E> {
                 &mut self.time_ns as *mut _,
                 timeout_us as _,
             ))?;
-            // Is it better to return this StreamResult or just make the values public off of rx_stream
+
             Ok(StreamResult{
-                ret: len as usize,
+                ret: len,
                 flags: self.flags,
                 time_ns: self.time_ns,
                 chan_mask: self.nchannels,
@@ -1579,7 +1579,6 @@ impl<E: StreamSample> TxStream<E> {
             chan_mask: 0,
         };
         unsafe {
-            // or do i want check_result
             sr.ret = len_result(SoapySDRDevice_readStreamStatus(
                 self.device.inner.ptr,
                 self.handle,
@@ -1587,7 +1586,7 @@ impl<E: StreamSample> TxStream<E> {
                 &mut sr.flags as *mut _,
                 &mut sr.time_ns as *mut _,
                 timeout_us as _,
-            ))? as usize;
+            ))?;
         }
         Ok(sr)
     }
