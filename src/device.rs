@@ -80,6 +80,15 @@ impl ::std::error::Error for Error {
     }
 }
 
+#[derive(Clone, Debug, Hash)]
+pub struct StreamResult {
+    pub ret: c_int,
+    pub flags: i32,
+    pub time_ns: i64,
+    pub chan_mask: usize,
+}
+
+
 /// Transmit or Receive
 #[repr(u32)]
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Hash)]
@@ -1312,7 +1321,7 @@ impl<E: StreamSample> RxStream<E> {
     ///
     /// # Panics
     ///  * If `buffers` is not the same length as the `channels` array passed to `Device::rx_stream`.
-    pub fn read(&mut self, buffers: &mut [&mut [E]], timeout_us: i64) -> Result<usize, Error> {
+    pub fn read(&mut self, buffers: &mut [&mut [E]], timeout_us: i64) -> Result<StreamResult, Error> {
         unsafe {
             assert!(buffers.len() == self.nchannels);
 
@@ -1332,7 +1341,12 @@ impl<E: StreamSample> RxStream<E> {
                 timeout_us as _,
             ))?;
 
-            Ok(len as usize)
+            Ok(StreamResult{
+                ret: len,
+                flags: self.flags,
+                time_ns: self.time_ns,
+                chan_mask: self.nchannels,
+            })
         }
     }
 }
@@ -1540,7 +1554,33 @@ impl<E: StreamSample> TxStream<E> {
         Ok(())
     }
 
-    // TODO: read_status
+    // /*!
+    //  * Readback status information about a stream.
+    //  * This call is typically used on a transmit stream
+    //  * to report time errors, underflows, and burst completion.
+    //  *
+    //  */
+
+    pub fn read_status(&mut self, timeout_us: i64) -> Result<StreamResult, Error>{
+        let mut sr = StreamResult {
+            ret: 0,
+            flags: 0,
+            time_ns: 0,
+            chan_mask: 0,
+        };
+        unsafe {
+            sr.ret = len_result(SoapySDRDevice_readStreamStatus(
+                self.device.inner.ptr,
+                self.handle,
+                &mut sr.chan_mask as *mut _,
+                &mut sr.flags as *mut _,
+                &mut sr.time_ns as *mut _,
+                timeout_us as _,
+            ))?;
+        }
+        Ok(sr)
+    }
+
 
     // TODO: DMA
 }
